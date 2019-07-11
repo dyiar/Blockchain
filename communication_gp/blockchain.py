@@ -16,7 +16,26 @@ class Blockchain(object):
         self.current_transactions = []
         self.nodes = set()
 
-        self.new_block(previous_hash=1, proof=100)
+        self.create_genesis_block()
+
+    def create_genesis_block(self):
+        """
+        Create a genesis block and add it to the chain
+
+        The genesis block is the anchor for the chain. It must be identical for all nodes, or consesus will fail.
+
+        It is normally hard coded. 
+        """
+
+        block = {
+            'index': 1,
+            'timestamp': 0 ,
+            'transactions': [],
+            'proof': 99,
+            'previous_hash': 1,
+        }
+
+        self.chain.append(block)
 
     def new_block(self, proof, previous_hash=None):
         """
@@ -39,6 +58,7 @@ class Blockchain(object):
         self.current_transactions = []
 
         self.chain.append(block)
+        self.broadcast_new_block(block)
         return block
 
     def new_transaction(self, sender, recipient, amount):
@@ -98,9 +118,12 @@ class Blockchain(object):
         Validates the Proof:  Does hash(last_proof, proof) contain 6
         leading zeroes?
         """
+        
         guess = f'{last_proof}{proof}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:6] == "000000"
+
+
 
     def valid_chain(self, chain):
         """
@@ -174,6 +197,18 @@ class Blockchain(object):
             return True
 
         return False
+    
+    def broadcast_new_block(self, block):
+        """
+        Alert neighbors in list of nodes that a new block has been mined :param block: <Block> the block has been mined and added to the chain.
+        """
+        post_data = {"block": block}
+
+        for node in self.nodes:
+            r = requests.post(f'http://{node}/block/new', json=post_data)
+
+            if r.status_code != 200:
+                print("error broadcasting")
 
 
 # Instantiate our Node
@@ -207,6 +242,8 @@ def mine():
         # Forge the new BLock by adding it to the chain
         previous_hash = blockchain.hash(last_block)
         block = blockchain.new_block(submitted_proof, previous_hash)
+
+        # blockchain.broadcast_new_block(block)
 
         response = {
             'message': "New Block Forged",
@@ -279,6 +316,31 @@ def register_nodes():
         'total_nodes': list(blockchain.nodes),
     }
     return jsonify(response), 201
+
+@app.route('/block/new', methods=['POST'])
+def new_block():
+    values = request.get_json()
+
+    # Check that the required fields are in the POST'ed data
+    required = ['block']
+    if not all(k in values for k in required):
+        return 'Missing Values', 400
+
+    # validate the block
+    # make sure the index is exactly 1 greater than the last chain
+    new_block = values['block']
+    last_block = blockchain.last_block
+
+    if new_block['index'] == last_block['index']+1:      
+        # make sure the block's last hash matches the hash of our last block
+        if new_block['previous_hash'] == blockchain.hash(last_block):
+            # validate the proof in the new block
+            if blockchain.valid_proof(last_block['proof'], new_block['proof']):
+                #the block is good, add to chain
+                blockchain.chain.append(new_block)
+                return "block accepted",200
+
+    return "block not accepted",200
 
 
 @app.route('/nodes/resolve', methods=['GET'])
