@@ -118,10 +118,18 @@ class Blockchain(object):
         Validates the Proof:  Does hash(last_proof, proof) contain 6
         leading zeroes?
         """
-        
         guess = f'{last_proof}{proof}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:6] == "000000"
+
+        # guess = f'{proof}'.encode()
+        # last = f'{last_proof}'.encode()
+        # last_hash = hashlib.sha256(last).hexdigest()
+        # guess_hash = hashlib.sha256(guess).hexdigest()
+
+        # print(guess_hash[-6:], last_hash[:6])
+
+        # return guess_hash[-6:] == last_hash[:6]
 
 
 
